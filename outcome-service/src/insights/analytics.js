@@ -19,17 +19,18 @@ const { OUTCOME_VALUES } = require('../schemas/outcome');
  *    person by filtering. A count of one is an identifier.
  */
 
-const MONTH_MS = 30 * 24 * 60 * 60 * 1000;
-
 function emptyOutcomeCounts() {
   return OUTCOME_VALUES.reduce((acc, value) => ({ ...acc, [value]: 0 }), {});
 }
 
+function monthStart(now, offset) {
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + offset, 1));
+}
+
 function monthKeysBack(months, now) {
   const keys = [];
-  const cursor = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
   for (let i = months - 1; i >= 0; i -= 1) {
-    const d = new Date(Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth() - i, 1));
+    const d = monthStart(now, -i);
     keys.push(`${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`);
   }
   return keys;
@@ -43,10 +44,15 @@ function monthKeysBack(months, now) {
  * so a chart shows a gap in recording as a gap instead of silently closing it.
  */
 async function outcomeTrend(Outcome, { windowMonths, metrics, now = new Date() }) {
-  const since = new Date(now.getTime() - windowMonths * MONTH_MS);
+  // The window is whole calendar months, matching the buckets exactly. A
+  // rolling "30 days x N" cutoff let the tail of the month before the window
+  // in as an extra, partial first bucket, and a future-dated record added a
+  // bucket after the current month.
+  const windowStart = monthStart(now, -(windowMonths - 1));
+  const windowEnd = monthStart(now, 1);
 
   const rows = await Outcome.aggregate([
-    { $match: { recordedAt: { $gte: since } } },
+    { $match: { recordedAt: { $gte: windowStart, $lt: windowEnd } } },
     {
       $group: {
         _id: {
@@ -72,10 +78,8 @@ async function outcomeTrend(Outcome, { windowMonths, metrics, now = new Date() }
 
   rows.forEach((row) => {
     const { month, outcome } = row._id;
-    if (!buckets.has(month)) {
-      buckets.set(month, { month, total: 0, ...emptyOutcomeCounts() });
-    }
     const bucket = buckets.get(month);
+    if (!bucket) return;
     if (OUTCOME_VALUES.includes(outcome)) bucket[outcome] += row.count;
     bucket.total += row.count;
 
@@ -94,7 +98,7 @@ async function outcomeTrend(Outcome, { windowMonths, metrics, now = new Date() }
     });
   });
 
-  const months = [...buckets.values()].sort((a, b) => a.month.localeCompare(b.month));
+  const months = [...buckets.values()];
 
   const measureSeries = [...measureTotals.entries()].map(([metricId, perMonth]) => {
     const definition = metrics.get(metricId);
@@ -199,4 +203,4 @@ async function diagnosisCohorts(Outcome, { minGroupSize, maxGroups }) {
   };
 }
 
-module.exports = { outcomeTrend, diagnosisCohorts, monthKeysBack, MONTH_MS };
+module.exports = { outcomeTrend, diagnosisCohorts, monthKeysBack };
