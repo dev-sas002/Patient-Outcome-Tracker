@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "private": true,
   "description": "Multi-tenant patient outcome tracker with microservices architecture",
+  "engines": {
+    "node": ">=22 <23"
+  },
   "scripts": {
     "install:all": "npm install && cd auth-service && npm install && cd ../outcome-service && npm install && cd ../api-gateway && npm install && cd ../frontend && npm install",
     "seed": "node seed.js",
