@@ -144,8 +144,14 @@ function buildRecords(clinicId, now) {
     // Spread across the last 11 months, weighted slightly toward recent months
     // so the chart shows a clinic that is getting busier rather than a flat bar.
     const monthsAgo = Math.floor(Math.pow(random(), 1.35) * 11);
+    // The current month only runs to today; later days would be future-dated
+    // records, which the API itself refuses.
+    const lastDay = monthsAgo === 0 ? Math.min(now.getUTCDate(), 27) : 27;
     const recordedAt = new Date(
-      Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - monthsAgo, 1 + Math.floor(random() * 27), 9)
+      Math.min(
+        Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - monthsAgo, 1 + Math.floor(random() * lastDay), 9),
+        now.getTime()
+      )
     );
 
     const decimals = condition.metricId === 'hba1c' ? 1 : 0;
