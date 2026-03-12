@@ -178,7 +178,9 @@ export default function OutcomeForm({ metrics, onCreated, onClose }) {
               </select>
             </div>
             <div className="form-group">
-              <label htmlFor="metricValue">Value</label>
+              <label htmlFor="metricValue">
+                Value{selectedMetric?.unit ? ` (${selectedMetric.unit})` : ''}
+              </label>
               <input
                 id="metricValue"
                 name="metricValue"
@@ -192,7 +194,7 @@ export default function OutcomeForm({ metrics, onCreated, onClose }) {
               />
               {selectedMetric && (
                 <span className="field-hint">
-                  {selectedMetric.min}-{selectedMetric.max} {selectedMetric.unit}
+                  Allowed {selectedMetric.min} to {selectedMetric.max}
                 </span>
               )}
             </div>
