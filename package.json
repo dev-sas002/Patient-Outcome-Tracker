@@ -17,9 +17,10 @@
     "dev:outcome": "cd outcome-service && npm run dev",
     "dev:gateway": "cd api-gateway && npm run dev",
     "dev:frontend": "cd frontend && npm run dev",
-    "test": "npm run test:auth && npm run test:outcome",
+    "test": "npm run test:auth && npm run test:outcome && npm run test:gateway",
     "test:auth": "cd auth-service && npm test",
-    "test:outcome": "cd outcome-service && npm test"
+    "test:outcome": "cd outcome-service && npm test",
+    "test:gateway": "cd api-gateway && npm test"
   },
   "dependencies": {
     "dotenv": "^16.4.7"

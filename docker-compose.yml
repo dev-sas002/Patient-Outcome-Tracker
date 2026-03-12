@@ -114,6 +114,8 @@ services:
       AUTH_SERVICE_URL: http://auth-service:4001
       OUTCOME_SERVICE_URL: http://outcome-service:4002
       CORS_ORIGIN: http://localhost:8330
+      LOGIN_RATE_LIMIT: ${LOGIN_RATE_LIMIT:-10}
+      LOGIN_RATE_WINDOW_MS: ${LOGIN_RATE_WINDOW_MS:-900000}
     ports:
       - '8331:4000'
     depends_on:
