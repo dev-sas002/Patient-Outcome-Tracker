@@ -235,7 +235,7 @@
 
 .demo-account span {
   color: var(--ink-muted);
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
 }
 
 /* ---------- app shell ---------- */
@@ -266,8 +266,9 @@
   color: var(--accent);
 }
 
-.header-left h2 {
-  font-size: 15px;
+.header-left .brand-name {
+  font-size: 17px;
+  font-weight: 600;
   color: var(--ink-primary);
 }
 
@@ -777,6 +778,7 @@
   border-bottom: 1px solid var(--line-hairline);
 }
 
+.modal-header h2,
 .modal-header h3 {
   font-size: 15px;
 }
@@ -901,6 +903,18 @@
 
   .stat-grid {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .dashboard-header {
+    padding: 10px 16px;
+  }
+
+  .header-right {
+    gap: 10px;
+  }
+
+  .header-left .brand-name {
+    font-size: 15px;
   }
 
   .form-row {
