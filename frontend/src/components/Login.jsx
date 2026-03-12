@@ -1,6 +1,44 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/useAuth';
 import { api } from '../api/client';
+import { useEscapeKey } from '../lib/useEscapeKey';
+
+function ClinicsDialog({ onClose, loading, error, clinics }) {
+  useEscapeKey(onClose);
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div
+        className="modal-content clinics-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="clinics-title"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="modal-header">
+          <h2 id="clinics-title">Clinics</h2>
+          <button type="button" className="btn-close" aria-label="Close" onClick={onClose} autoFocus>
+            ×
+          </button>
+        </div>
+        <div className="modal-body" aria-live="polite">
+          {loading && <p className="clinics-loading">Loading clinics...</p>}
+          {error && <p className="clinics-error">{error}</p>}
+          {!loading && !error && clinics.length === 0 && (
+            <p className="clinics-empty">No clinics found.</p>
+          )}
+          {!loading && !error && clinics.length > 0 && (
+            <ul className="clinics-list">
+              {clinics.map((c) => (
+                <li key={c.clinicId || c.name}>{c.name}</li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function Login() {
   const { login } = useAuth();
@@ -24,6 +62,8 @@ export default function Login() {
       .finally(() => setClinicsLoading(false));
   }, [showClinicsModal]);
 
+  const closeClinics = useCallback(() => setShowClinicsModal(false), []);
+
   async function handleSubmit(e) {
     e.preventDefault();
     setError('');
@@ -42,7 +82,7 @@ export default function Login() {
       <div className="login-card">
         <div className="login-header">
           <div className="login-icon">
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg aria-hidden="true" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
             </svg>
           </div>
@@ -51,7 +91,11 @@ export default function Login() {
         </div>
 
         <form onSubmit={handleSubmit}>
-          {error && <div className="error-message">{error}</div>}
+          {error && (
+            <div className="error-message" role="alert">
+              {error}
+            </div>
+          )}
 
           <div className="form-group">
             <label htmlFor="username">Username</label>
@@ -93,35 +137,12 @@ export default function Login() {
         </form>
 
         {showClinicsModal && (
-          <div className="modal-overlay" onClick={() => setShowClinicsModal(false)}>
-            <div className="modal-content clinics-modal" onClick={(e) => e.stopPropagation()}>
-              <div className="modal-header">
-                <h3>Clinics</h3>
-                <button
-                  type="button"
-                  className="btn-close"
-                  aria-label="Close"
-                  onClick={() => setShowClinicsModal(false)}
-                >
-                  ×
-                </button>
-              </div>
-              <div className="modal-body">
-                {clinicsLoading && <p className="clinics-loading">Loading clinics...</p>}
-                {clinicsError && <p className="clinics-error">{clinicsError}</p>}
-                {!clinicsLoading && !clinicsError && clinics.length === 0 && (
-                  <p className="clinics-empty">No clinics found.</p>
-                )}
-                {!clinicsLoading && !clinicsError && clinics.length > 0 && (
-                  <ul className="clinics-list">
-                    {clinics.map((c) => (
-                      <li key={c.clinicId || c.name}>{c.name}</li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            </div>
-          </div>
+          <ClinicsDialog
+            onClose={closeClinics}
+            loading={clinicsLoading}
+            error={clinicsError}
+            clinics={clinics}
+          />
         )}
 
         <div className="login-footer">

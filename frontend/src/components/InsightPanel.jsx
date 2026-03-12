@@ -30,7 +30,11 @@ export default function InsightPanel({ insights, loading, error, onRefresh }) {
       </div>
 
       <div className="card-body">
-        {error && <div className="error-message">{error}</div>}
+        {error && (
+          <div className="error-message" role="alert">
+            {error}
+          </div>
+        )}
 
         {loading && !summary && (
           <div style={{ display: 'grid', gap: 8 }}>
