@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { api } from '../api/client';
-import { OUTCOME_ORDER, OUTCOME_META } from '../lib/outcomes';
+import { OUTCOME_ORDER, OUTCOME_META, todayIsoDate } from '../lib/outcomes';
+import { useEscapeKey } from '../lib/useEscapeKey';
 
 const INITIAL_FORM = {
   patientName: '',
@@ -8,6 +9,7 @@ const INITIAL_FORM = {
   diagnosis: '',
   treatment: '',
   outcome: 'improved',
+  recordedOn: '',
   metricId: '',
   metricValue: '',
   notes: '',
@@ -22,6 +24,7 @@ export default function OutcomeForm({ metrics, onCreated, onClose }) {
   const [form, setForm] = useState(INITIAL_FORM);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+  useEscapeKey(onClose);
 
   const selectedMetric = metrics.find((metric) => metric.id === form.metricId) || null;
 
@@ -43,6 +46,8 @@ export default function OutcomeForm({ metrics, onCreated, onClose }) {
       };
       if (form.age) payload.age = Number.parseInt(form.age, 10);
       if (form.notes) payload.notes = form.notes;
+      // Noon UTC keeps the chosen calendar day the same in every timezone.
+      if (form.recordedOn) payload.recordedAt = `${form.recordedOn}T12:00:00.000Z`;
       if (form.metricId && form.metricValue !== '') {
         payload.measures = { [form.metricId]: Number(form.metricValue) };
       }
@@ -63,18 +68,22 @@ export default function OutcomeForm({ metrics, onCreated, onClose }) {
         className="modal-content"
         role="dialog"
         aria-modal="true"
-        aria-label="Record a new patient outcome"
+        aria-labelledby="outcome-form-title"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="modal-header">
-          <h3>Record a patient outcome</h3>
+          <h3 id="outcome-form-title">Record a patient outcome</h3>
           <button type="button" className="btn-close" aria-label="Close" onClick={onClose}>
             &times;
           </button>
         </div>
 
         <form className="modal-body" onSubmit={handleSubmit}>
-          {error && <div className="error-message">{error}</div>}
+          {error && (
+            <div className="error-message" role="alert">
+              {error}
+            </div>
+          )}
 
           <div className="form-row">
             <div className="form-group">
@@ -85,7 +94,9 @@ export default function OutcomeForm({ metrics, onCreated, onClose }) {
                 value={form.patientName}
                 onChange={handleChange}
                 placeholder="Full name"
+                autoComplete="off"
                 required
+                autoFocus
               />
             </div>
             <div className="form-group">
@@ -126,15 +137,32 @@ export default function OutcomeForm({ metrics, onCreated, onClose }) {
             />
           </div>
 
-          <div className="form-group">
-            <label htmlFor="outcome">Outcome *</label>
-            <select id="outcome" name="outcome" value={form.outcome} onChange={handleChange}>
-              {OUTCOME_ORDER.map((key) => (
-                <option key={key} value={key}>
-                  {OUTCOME_META[key].label}
-                </option>
-              ))}
-            </select>
+          <div className="form-row">
+            <div className="form-group">
+              <label htmlFor="outcome">Outcome *</label>
+              <select id="outcome" name="outcome" value={form.outcome} onChange={handleChange}>
+                {OUTCOME_ORDER.map((key) => (
+                  <option key={key} value={key}>
+                    {OUTCOME_META[key].label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="form-group">
+              <label htmlFor="recordedOn">Observed on</label>
+              <input
+                id="recordedOn"
+                name="recordedOn"
+                type="date"
+                max={todayIsoDate()}
+                value={form.recordedOn}
+                onChange={handleChange}
+                aria-describedby="recordedOn-hint"
+              />
+              <span className="field-hint" id="recordedOn-hint">
+                Leave empty for today
+              </span>
+            </div>
           </div>
 
           <div className="form-row">

@@ -35,6 +35,13 @@ export function formatPercent(value) {
   return `${Math.round(value * 100)}%`;
 }
 
+/** Today as YYYY-MM-DD in the browser's timezone, for a date input's `max`. */
+export function todayIsoDate(now = new Date()) {
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${now.getFullYear()}-${month}-${day}`;
+}
+
 export function formatDate(value) {
   if (!value) return '-';
   return new Date(value).toLocaleDateString(undefined, {
