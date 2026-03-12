@@ -1,0 +1,34 @@
+# dependencies
+node_modules/
+
+# environment files: real values never belong in git
+.env
+.env.*
+!.env.example
+
+# build output and caches
+dist/
+dist-ssr/
+build/
+.cache/
+.vite/
+.eslintcache
+
+# test output
+coverage/
+
+# logs and scratch
+logs/
+*.log
+tmp/
+
+# local python venv used by tooling, never part of the app
+project_venv/
+
+# editor and OS files
+.DS_Store
+.idea/
+.vscode/
+
+# workflow files are not part of this repository
+.github/
