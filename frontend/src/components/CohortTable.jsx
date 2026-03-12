@@ -8,6 +8,16 @@ import { OUTCOME_ORDER, OUTCOME_META, formatPercent } from '../lib/outcomes';
 export default function CohortTable({ data }) {
   const cohorts = data?.cohorts ?? [];
 
+  if (!data) {
+    return (
+      <div className="card-body" style={{ display: 'grid', gap: 8 }}>
+        {[0, 1, 2].map((row) => (
+          <div key={row} className="skeleton" style={{ height: 34 }} />
+        ))}
+      </div>
+    );
+  }
+
   if (cohorts.length === 0) {
     return (
       <div className="empty-state">

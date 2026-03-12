@@ -28,6 +28,7 @@ export default function Dashboard() {
   const [page, setPage] = useState(1);
   const [listLoading, setListLoading] = useState(true);
   const [error, setError] = useState('');
+  const [summaryError, setSummaryError] = useState('');
   const [formOpen, setFormOpen] = useState(false);
 
   // The record list reloads on its own when the filter or page changes; the
@@ -61,8 +62,9 @@ export default function Dashboard() {
       setTrends(trendsRes.data);
       setCohorts(cohortsRes.data);
       setMetrics(metricsRes.data.metrics);
+      setSummaryError('');
     } catch (err) {
-      setError(err.message || 'Failed to load clinic summaries');
+      setSummaryError(err.message || 'Failed to load clinic summaries');
     }
   }, []);
 
@@ -90,11 +92,15 @@ export default function Dashboard() {
 
   const handleCreated = useCallback(() => {
     setFormOpen(false);
-    setPage(1);
-    loadList();
+    // Changing the page already reloads the list through the effect above; a
+    // direct call as well would race two requests for different pages.
+    if (page === 1) loadList();
+    else setPage(1);
     loadSummaries();
     loadInsights();
-  }, [loadList, loadSummaries, loadInsights]);
+  }, [page, loadList, loadSummaries, loadInsights]);
+
+  const closeForm = useCallback(() => setFormOpen(false), []);
 
   const metricsById = useMemo(
     () => Object.fromEntries(metrics.map((metric) => [metric.id, metric])),
@@ -116,7 +122,7 @@ export default function Dashboard() {
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
             <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
           </svg>
-          <h2>Patient Outcome Tracker</h2>
+          <span className="brand-name">Patient Outcome Tracker</span>
         </div>
         <div className="header-right">
           <div className="user-info">
@@ -143,7 +149,11 @@ export default function Dashboard() {
           </button>
         </div>
 
-        {error && <div className="error-message">{error}</div>}
+        {[summaryError, error].filter(Boolean).map((message) => (
+          <div className="error-message" role="alert" key={message}>
+            {message}
+          </div>
+        ))}
 
         <StatTiles stats={stats} />
 
@@ -179,7 +189,9 @@ export default function Dashboard() {
                 <p>Monthly mean per measure, read in the direction that counts as better</p>
               </div>
             </div>
-            {visibleMeasures.length > 0 ? (
+            {!trends ? (
+              <div className="chart-empty">Loading measures...</div>
+            ) : visibleMeasures.length > 0 ? (
               <div className="measure-list">
                 {visibleMeasures.map((series) => (
                   <div className="measure-row" key={series.metricId}>
@@ -260,7 +272,7 @@ export default function Dashboard() {
         <OutcomeForm
           metrics={metrics}
           onCreated={handleCreated}
-          onClose={() => setFormOpen(false)}
+          onClose={closeForm}
         />
       )}
     </div>
