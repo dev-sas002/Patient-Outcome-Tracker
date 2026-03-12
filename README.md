@@ -253,3 +253,7 @@ formatting helpers and the API client with `fetch` stubbed.
 - A shared package for the connection pool, duplicated across the two services.
 
 This is not a certified medical device, and the summary is meant as decision support only.
+
+## License
+
+MIT, see [LICENSE](LICENSE).
