@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { useAuth } from '../context/useAuth';
 import { api } from '../api/client';
 import { useEscapeKey } from '../lib/useEscapeKey';
@@ -51,8 +51,8 @@ export default function Login() {
   const [clinicsLoading, setClinicsLoading] = useState(false);
   const [clinicsError, setClinicsError] = useState('');
 
-  useEffect(() => {
-    if (!showClinicsModal) return;
+  function openClinics() {
+    setShowClinicsModal(true);
     setClinicsError('');
     setClinicsLoading(true);
     api
@@ -60,7 +60,7 @@ export default function Login() {
       .then((res) => setClinics(res.data.clinics || []))
       .catch((err) => setClinicsError(err.message || 'Failed to load clinics'))
       .finally(() => setClinicsLoading(false));
-  }, [showClinicsModal]);
+  }
 
   const closeClinics = useCallback(() => setShowClinicsModal(false), []);
 
@@ -130,7 +130,7 @@ export default function Login() {
             type="button"
             className="btn btn-outline btn-block"
             style={{ marginTop: 10 }}
-            onClick={() => setShowClinicsModal(true)}
+            onClick={openClinics}
           >
             Clinics
           </button>

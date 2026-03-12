@@ -17,88 +17,91 @@ export default function Dashboard() {
   const [trends, setTrends] = useState(null);
   const [cohorts, setCohorts] = useState(null);
   const [metrics, setMetrics] = useState([]);
-  const [outcomes, setOutcomes] = useState([]);
-  const [pagination, setPagination] = useState(null);
-
-  const [insights, setInsights] = useState(null);
-  const [insightsLoading, setInsightsLoading] = useState(true);
-  const [insightsError, setInsightsError] = useState('');
+  const [summaryError, setSummaryError] = useState('');
 
   const [filter, setFilter] = useState('');
   const [page, setPage] = useState(1);
-  const [listLoading, setListLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [summaryError, setSummaryError] = useState('');
   const [formOpen, setFormOpen] = useState(false);
 
-  // The record list reloads on its own when the filter or page changes; the
-  // summaries only reload when the underlying data actually changed.
-  const loadList = useCallback(async () => {
-    setListLoading(true);
-    try {
-      const params = { page, limit: 10 };
-      if (filter) params.outcome = filter;
-      const res = await api.getOutcomes(params);
-      setOutcomes(res.data.outcomes);
-      setPagination(res.data.pagination);
-      setError('');
-    } catch (err) {
-      setError(err.message || 'Failed to load outcomes');
-      setOutcomes([]);
-    } finally {
-      setListLoading(false);
-    }
-  }, [filter, page]);
+  // Bumped after a save, so every panel refetches even when the page and
+  // filter are unchanged; the insight version is bumped by "Refresh" alone.
+  const [dataVersion, setDataVersion] = useState(0);
+  const [insightsVersion, setInsightsVersion] = useState(0);
 
-  const loadSummaries = useCallback(async () => {
-    try {
-      const [statsRes, trendsRes, cohortsRes, metricsRes] = await Promise.all([
-        api.getStats(),
-        api.getTrends({ months: 12 }),
-        api.getCohorts(),
-        api.getMetrics(),
-      ]);
-      setStats(statsRes.data);
-      setTrends(trendsRes.data);
-      setCohorts(cohortsRes.data);
-      setMetrics(metricsRes.data.metrics);
-      setSummaryError('');
-    } catch (err) {
-      setSummaryError(err.message || 'Failed to load clinic summaries');
-    }
-  }, []);
+  // Each response is stored with the request key it answers. A panel is
+  // loading while its stored key is not the current one, and a response for
+  // a superseded key is dropped, so a slow page-3 reply cannot overwrite page 1.
+  const listKey = `${filter}|${page}|${dataVersion}`;
+  const [list, setList] = useState({ key: null, outcomes: [], pagination: null, error: '' });
+  const listLoading = list.key !== listKey;
 
-  const loadInsights = useCallback(async () => {
-    setInsightsLoading(true);
-    setInsightsError('');
-    try {
-      const res = await api.getInsights();
-      setInsights(res.data);
-    } catch (err) {
-      setInsightsError(err.message || 'Failed to generate a summary');
-    } finally {
-      setInsightsLoading(false);
-    }
-  }, []);
+  const insightsKey = `${dataVersion}|${insightsVersion}`;
+  const [insights, setInsights] = useState({ key: null, data: null, error: '' });
+  const insightsLoading = insights.key !== insightsKey;
 
   useEffect(() => {
-    loadList();
-  }, [loadList]);
+    let cancelled = false;
+    const params = { page, limit: 10 };
+    if (filter) params.outcome = filter;
+    api
+      .getOutcomes(params)
+      .then((res) => {
+        if (cancelled) return;
+        setList({ key: listKey, outcomes: res.data.outcomes, pagination: res.data.pagination, error: '' });
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setList({ key: listKey, outcomes: [], pagination: null, error: err.message || 'Failed to load outcomes' });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [filter, page, listKey]);
 
   useEffect(() => {
-    loadSummaries();
-    loadInsights();
-  }, [loadSummaries, loadInsights]);
+    let cancelled = false;
+    Promise.all([api.getStats(), api.getTrends({ months: 12 }), api.getCohorts(), api.getMetrics()])
+      .then(([statsRes, trendsRes, cohortsRes, metricsRes]) => {
+        if (cancelled) return;
+        setStats(statsRes.data);
+        setTrends(trendsRes.data);
+        setCohorts(cohortsRes.data);
+        setMetrics(metricsRes.data.metrics);
+        setSummaryError('');
+      })
+      .catch((err) => {
+        if (!cancelled) setSummaryError(err.message || 'Failed to load clinic summaries');
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [dataVersion]);
+
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .getInsights()
+      .then((res) => {
+        if (!cancelled) setInsights({ key: insightsKey, data: res.data, error: '' });
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setInsights((prev) => ({
+          key: insightsKey,
+          data: prev.data,
+          error: err.message || 'Failed to generate a summary',
+        }));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [insightsKey]);
 
   const handleCreated = useCallback(() => {
     setFormOpen(false);
-    // Changing the page already reloads the list through the effect above; a
-    // direct call as well would race two requests for different pages.
-    if (page === 1) loadList();
-    else setPage(1);
-    loadSummaries();
-    loadInsights();
-  }, [page, loadList, loadSummaries, loadInsights]);
+    setPage(1);
+    setDataVersion((version) => version + 1);
+  }, []);
 
   const closeForm = useCallback(() => setFormOpen(false), []);
 
@@ -149,7 +152,7 @@ export default function Dashboard() {
           </button>
         </div>
 
-        {[summaryError, error].filter(Boolean).map((message) => (
+        {[summaryError, list.error].filter(Boolean).map((message) => (
           <div className="error-message" role="alert" key={message}>
             {message}
           </div>
@@ -238,10 +241,10 @@ export default function Dashboard() {
         </div>
 
         <InsightPanel
-          insights={insights}
+          insights={insights.data}
           loading={insightsLoading}
-          error={insightsError}
-          onRefresh={loadInsights}
+          error={insightsLoading ? '' : insights.error}
+          onRefresh={() => setInsightsVersion((version) => version + 1)}
         />
 
         <section className="card">
@@ -255,8 +258,8 @@ export default function Dashboard() {
         </section>
 
         <OutcomeTable
-          outcomes={outcomes}
-          pagination={pagination}
+          outcomes={list.outcomes}
+          pagination={list.pagination}
           metricsById={metricsById}
           loading={listLoading}
           filter={filter}
