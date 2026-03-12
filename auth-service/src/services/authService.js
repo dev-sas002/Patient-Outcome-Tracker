@@ -1,5 +1,6 @@
 'use strict';
 
+const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const Clinic = require('../models/Clinic');
 const UserRegistry = require('../models/UserRegistry');
@@ -22,6 +23,16 @@ const {
  * username alone does not say which database holds the password hash, so the
  * registry is consulted first purely as a routing table.
  */
+// Compared against when no account matches, so an unknown username costs the
+// same bcrypt work as a wrong password. Without it the response time alone
+// tells a caller which usernames exist. Hashed on first use, at the same cost
+// factor as real passwords.
+let decoyHash = null;
+async function spendDecoyCompare(password) {
+  decoyHash = decoyHash || (await bcrypt.hash('no-such-account', 12));
+  await bcrypt.compare(String(password), decoyHash);
+}
+
 function createAuthService(dependencies = {}) {
   const {
     config,
@@ -78,13 +89,19 @@ function createAuthService(dependencies = {}) {
     const route = await registryModel.findOne({ username: normalised });
     // A missing route and a wrong password are the same error on purpose, so
     // the endpoint cannot be used to enumerate usernames.
-    if (!route) throw new InvalidCredentialsError();
+    if (!route) {
+      await spendDecoyCompare(password);
+      throw new InvalidCredentialsError();
+    }
 
     const clinic = await requireActiveClinic(route.clinicId);
     const User = await clinicUserModel(clinic);
 
     const user = await User.findOne({ username: normalised });
-    if (!user) throw new InvalidCredentialsError();
+    if (!user) {
+      await spendDecoyCompare(password);
+      throw new InvalidCredentialsError();
+    }
     if (!(await user.comparePassword(password))) throw new InvalidCredentialsError();
 
     return { token: issueToken(user, clinic), user: publicUser(user, clinic) };

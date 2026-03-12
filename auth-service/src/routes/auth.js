@@ -14,8 +14,21 @@ function createAuthRouter({ authService }) {
   const router = express.Router();
 
   const loginValidation = [
-    body('username').trim().notEmpty().withMessage('Username is required'),
-    body('password').notEmpty().withMessage('Password is required'),
+    // Type checks first: a JSON object or array here would otherwise reach
+    // bcrypt and the registry query as something other than a string.
+    body('username')
+      .isString()
+      .withMessage('Username must be text')
+      .bail()
+      .trim()
+      .notEmpty()
+      .withMessage('Username is required'),
+    body('password')
+      .isString()
+      .withMessage('Password must be text')
+      .bail()
+      .notEmpty()
+      .withMessage('Password is required'),
   ];
 
   router.post(

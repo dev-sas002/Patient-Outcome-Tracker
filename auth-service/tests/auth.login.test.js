@@ -6,6 +6,7 @@ configureEnv(NAMESPACE);
 const request = require('supertest');
 const mongoose = require('mongoose');
 const jwt = require('jsonwebtoken');
+const bcrypt = require('bcryptjs');
 const { createApp } = require('../src/app');
 const Clinic = require('../src/models/Clinic');
 const { getClinicConnection, getClinicUserModel, closeAll } = require('../src/tenancy/connectionPool');
@@ -109,6 +110,28 @@ describe('POST /api/auth/login', () => {
 
     expect(unknown.status).toBe(401);
     expect(unknown.body.message).toBe(wrongPassword.body.message);
+  });
+
+  it('spends a bcrypt comparison on an unknown username too', async () => {
+    const compare = jest.spyOn(bcrypt, 'compare');
+
+    const res = await request(app)
+      .post('/api/auth/login')
+      .send({ username: 'nobody.here', password: 'wrong-password' });
+
+    expect(res.status).toBe(401);
+    expect(compare).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    ['an object password', { username: 'alpha.doctor', password: { $gt: '' } }, 'password'],
+    ['an array username', { username: ['alpha.doctor'], password: TEST_PASSWORD }, 'username'],
+    ['a missing password', { username: 'alpha.doctor' }, 'password'],
+  ])('rejects %s with 400 rather than a server error', async (_label, body, field) => {
+    const res = await request(app).post('/api/auth/login').send(body);
+
+    expect(res.status).toBe(400);
+    expect(res.body.errors.map((e) => e.field)).toContain(field);
   });
 
   it('refuses login for a deactivated clinic', async () => {
