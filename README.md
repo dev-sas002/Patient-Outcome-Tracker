@@ -17,17 +17,20 @@ docker compose up --build        # then open http://localhost:8330
 ```
 
 Compose starts MongoDB, runs the two seed jobs in order, then brings up the three services and the
-nginx-served SPA. `docker compose down -v` removes the stack and its data. Every seeded account uses
-`password123`:
+nginx-served SPA. `docker compose down -v` removes the stack and its data. No `.env` is needed; copy
+`.env.example` to `.env` only to change a default. Every seeded account uses `password123`:
 
 | Clinic | Accounts | Seeded records |
 | --- | --- | --- |
 | Sunrise Medical Center | `dr.smith`, `nurse.jones` | 74 |
 | Bayview Family Clinic | `dr.chen`, `admin.lee` | 61 |
 
-Sign in as `dr.smith`, then as `dr.chen`: two different databases, two different dashboards.
+Sign in as `dr.smith`, then as `dr.chen`: two different databases, two different dashboards. The layout
+holds down to phone width:
 
-Without Docker you need a MongoDB server and, for both backend services, `MONGODB_REGISTRY_URI`,
+<img src="docs/screenshots/06-mobile-dashboard.png" alt="Bayview's dashboard on a phone: stat tiles two to a row above the monthly chart" width="260" />
+
+Without Docker you need Node 22 (`.nvmrc`), a MongoDB server and, for both backend services, `MONGODB_REGISTRY_URI`,
 `MONGODB_BASE_URI` (server URI with no database name) and the same `JWT_SECRET`. The gateway needs
 `AUTH_SERVICE_URL` and `OUTCOME_SERVICE_URL`. Then `npm run install:all`, `npm run seed`, and
 one `npm run dev:<name>` per process: `gateway` (:4000), `auth` (:4001), `outcome` (:4002), `frontend` (:5173).
@@ -36,7 +39,7 @@ one `npm run dev:<name>` per process: `gateway` (:4000), `auth` (:4001), `outcom
 
 ```mermaid
 flowchart LR
-    B["Browser<br/>React SPA :8330"] --> G["api-gateway :8331<br/>proxy only"]
+    B["Browser<br/>React SPA :8330"] --> G["api-gateway :8331<br/>proxy, login throttle"]
     G -->|"/api/auth/*"| A["auth-service :8332"]
     G -->|"/api/outcomes/*"| O["outcome-service :8333"]
     A --> R[("registry DB<br/>clinics, username routing")]
@@ -129,13 +132,27 @@ the briefing itself, and the UI shows it behind a disclosure next to a decision-
 
 ![Outcome summary with the briefing it was written from expanded](docs/screenshots/02-outcome-summary.png)
 
-![Diagnosis cohorts with small groups folded, above records filtered to declined](docs/screenshots/03-cohorts-and-records.png)
+![Diagnosis cohorts, with the three records of a small group folded into Other (grouped)](docs/screenshots/03-cohorts.png)
 
 Errors follow the same rule: Mongoose validation errors embed the submitted document, so only `HttpError`
 subclasses reach the client with their own message and everything else is a flat 500. Logs carry an error's
 name and message, never the request body. The charts are hand-written SVG (React is the only runtime
 dependency of the frontend), and outcome counts and measure means are drawn on separate plots so nobody reads
 a correlation into a shared axis.
+
+**Sign-in is throttled where the client is visible.** The auth service only ever sees the gateway's
+address, so the gateway limits `POST /api/auth/login` to `LOGIN_RATE_LIMIT` attempts per client per
+`LOGIN_RATE_WINDOW_MS` (10 per 15 minutes) and answers 429 with `Retry-After`. The counter lives in
+gateway memory, which is right for one gateway and wrong for several; a shared store is the next step
+there. Behind the limiter, an unknown username still costs a bcrypt compare against a decoy hash, so
+response time does not reveal which usernames exist.
+
+**Trends are calendar months.** The monthly chart and the measure means bucket by `recordedAt`, the date
+the outcome was observed, not when it was typed in. The query window runs from the first day of the
+oldest month to the start of next month, so there are exactly as many bars as months asked for. The API
+refuses a `recordedAt` more than a day ahead, and the form offers an "Observed on" date capped at today.
+
+![Monthly outcome counts with the November tooltip open, beside the measure trends](docs/screenshots/04-trend-detail.png)
 
 ## API
 
@@ -144,11 +161,11 @@ All routes go through the gateway. Authenticated routes take `Authorization: Bea
 
 | Method | Path | Auth | Notes |
 | --- | --- | --- | --- |
-| `POST` | `/api/auth/login` | none | `{ username, password }` returns `{ token, user }`; 403 for a deactivated clinic |
+| `POST` | `/api/auth/login` | none | `{ username, password }` returns `{ token, user }`; 403 for a deactivated clinic; 429 when throttled |
 | `GET` | `/api/auth/clinics` | none | Names and ids for the login screen, never database names |
 | `GET` | `/api/auth/verify` | Bearer | Re-resolves the token's user and clinic |
 | `GET` | `/api/outcomes` | Bearer | Newest first; `page`, `limit` (clamped to 100), `outcome` |
-| `POST` | `/api/outcomes` | Bearer | `clinicId` and `createdBy` come from the token |
+| `POST` | `/api/outcomes` | Bearer | `clinicId` and `createdBy` come from the token; `recordedAt` optional, not in the future |
 | `GET` | `/api/outcomes/stats` | Bearer | Count per outcome plus total |
 | `GET` | `/api/outcomes/trends` | Bearer | Monthly counts and measure means; `months` default 12, max 60 |
 | `GET` | `/api/outcomes/cohorts` | Bearer | Split by diagnosis with small-cell suppression |
@@ -157,12 +174,57 @@ All routes go through the gateway. Authenticated routes take `Authorization: Bea
 
 Records are append-only: there is no update or delete route. Each service also exposes `GET /health`.
 
+These exchanges were captured against the compose stack (token shortened):
+
+```http
+POST /api/auth/login
+{"username": "dr.smith", "password": "password123"}
+
+200 {"success": true, "message": "Login successful",
+     "data": {"token": "eyJhbG...1ra4",
+              "user": {"id": "6aef4b19d07c4ac9addd3be3", "username": "dr.smith",
+                       "fullName": "Dr. Sarah Smith", "role": "doctor",
+                       "clinicName": "Sunrise Medical Center"}}}
+```
+
+```http
+GET /api/outcomes/stats
+Authorization: Bearer <token>
+
+200 {"success": true, "data": {"improved": 36, "stable": 26, "declined": 12, "total": 74}}
+```
+
+```http
+GET /api/outcomes?outcome=declined&limit=1
+
+200 {"success": true, "data": {
+      "outcomes": [{"_id": "6aef4b1a94b76ffae3a20fea", "clinicId": "clinic-sunrise",
+                    "patientName": "Demo Patient Juniper 2", "age": 58, "diagnosis": "COPD",
+                    "treatment": "Inhaled bronchodilator with pulmonary rehabilitation",
+                    "outcome": "declined", "measures": {"walk_6min": 153},
+                    "createdBy": "nurse.jones", ...}],
+      "pagination": {"total": 12, "page": 1, "limit": 1, "pages": 12}}}
+```
+
+```http
+POST /api/outcomes
+{"patientName": "Demo Patient Test", "diagnosis": "Asthma", "treatment": "Inhaler review",
+ "outcome": "improved", "recordedAt": "2031-01-01"}
+
+400 {"success": false, "message": "Validation failed",
+     "errors": [{"field": "recordedAt", "message": "recordedAt cannot be in the future"}]}
+```
+
+Eleven wrong passwords in a row from one address: the first ten get `401`, the eleventh `429`.
+
+![Records filtered to declined, newest observation first](docs/screenshots/07-records-declined.png)
+
 ## Testing
 
 ```bash
 npm run install:all
-npm test            # 192 tests in 13 suites (auth 53, outcome 139)
-npm run lint        # backend; npm run lint:frontend for the SPA
+npm test            # 224 tests: auth 57, outcome 150, gateway 6 (Jest), frontend 11 (Vitest)
+npm run lint:all    # backend services, then the SPA
 ```
 
 Jest and supertest drive each service's HTTP surface against a real MongoDB started in-process by
@@ -171,15 +233,22 @@ to a model provider: the AI client is injected and the suites pass a stub. `tena
 an empty filter still returns one clinic's rows and that a filter naming another clinic throws;
 `outcomes.access.test.js` covers the same ground end to end, including a token with no `clinicId` claim.
 `connectionPool.test.js` runs in both services and covers eviction and failed handshakes.
+`trendWindow.test.js` pins the calendar-month window with a fixed clock, and `listingIndex.test.js` reads
+the query plan to prove the record list is sorted from an index. The gateway suite runs against stub
+upstreams and covers routing, the 502 path and the login limiter. The SPA's Vitest suite covers the
+formatting helpers and the API client with `fetch` stubbed.
+
+![New-outcome form with a measure selected and the observation date field](docs/screenshots/05-new-outcome.png)
 
 ## Limitations and roadmap
 
-- Rate limiting on `POST /api/auth/login`, which is currently unthrottled.
+- A shared store for the login limiter if the gateway is ever run as more than one instance.
 - Refresh tokens and per-user revocation. Today only clinic deactivation revokes access.
 - An audit log of record reads and writes, which real PHI handling requires.
 - Role enforcement. Tokens carry a role, but every user in a clinic can read and write every record.
 - Replication for the registry, which is a single point of failure.
-- A frontend test suite (currently lint and a production build).
+- Component tests for the SPA (the Vitest suite covers helpers and the API client only), and keyboard
+  access to the chart tooltips, which are mouse-only today.
 - Live coverage of the Anthropic path, which so far is tested only through the injected client.
 - A shared package for the connection pool, duplicated across the two services.
 
