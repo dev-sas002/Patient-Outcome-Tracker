@@ -73,11 +73,12 @@ function getOutcomeSchema() {
     { timestamps: true }
   );
 
-  // Listing is "this clinic, newest observation first"; the filtered listing
-  // adds an equality match on `outcome` before the sort, so it needs its own
-  // compound index to avoid an in-memory sort.
-  outcomeSchema.index({ clinicId: 1, recordedAt: -1 });
-  outcomeSchema.index({ clinicId: 1, outcome: 1, recordedAt: -1 });
+  // Listing is "this clinic, newest observation first", with `_id` as the
+  // tie-break so paging is stable. Both keys must be in the index or MongoDB
+  // falls back to an in-memory sort. The filtered listing adds an equality
+  // match on `outcome` before the sort, so it needs its own compound index.
+  outcomeSchema.index({ clinicId: 1, recordedAt: -1, _id: -1 });
+  outcomeSchema.index({ clinicId: 1, outcome: 1, recordedAt: -1, _id: -1 });
   outcomeSchema.index({ clinicId: 1, createdAt: -1 });
 
   return outcomeSchema;
