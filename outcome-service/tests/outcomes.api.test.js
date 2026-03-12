@@ -218,6 +218,17 @@ describe('POST /api/outcomes', () => {
     expect(res.body.data.age).toBeUndefined();
   });
 
+  it('stores an explicit observation date', async () => {
+    const recordedAt = new Date(Date.UTC(2026, 0, 15, 12)).toISOString();
+    const res = await request(app)
+      .post('/api/outcomes')
+      .set('Authorization', bearer(signToken()))
+      .send({ ...validBody, recordedAt });
+
+    expect(res.status).toBe(201);
+    expect(res.body.data.recordedAt).toBe(recordedAt);
+  });
+
   it.each([
     ['a missing patient name', { ...validBody, patientName: '   ' }, 'patientName'],
     ['a missing diagnosis', { ...validBody, diagnosis: '' }, 'diagnosis'],
@@ -225,6 +236,12 @@ describe('POST /api/outcomes', () => {
     ['an unknown outcome value', { ...validBody, outcome: 'cured' }, 'outcome'],
     ['an out-of-range age', { ...validBody, age: 900 }, 'age'],
     ['a negative age', { ...validBody, age: -1 }, 'age'],
+    ['a malformed recordedAt', { ...validBody, recordedAt: 'last tuesday' }, 'recordedAt'],
+    [
+      'a recordedAt in the future',
+      { ...validBody, recordedAt: new Date(Date.now() + 3 * 86_400_000).toISOString() },
+      'recordedAt',
+    ],
   ])('rejects %s with 400', async (_label, body, field) => {
     const res = await request(app)
       .post('/api/outcomes')

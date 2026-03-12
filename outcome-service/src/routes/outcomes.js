@@ -7,6 +7,8 @@ const { validate } = require('../middleware/validate');
 const { asyncHandler } = require('../http/asyncHandler');
 const { OUTCOME_VALUES } = require('../schemas/outcome');
 
+const FUTURE_SLACK_MS = 24 * 60 * 60 * 1000;
+
 /**
  * HTTP surface only.
  *
@@ -46,7 +48,13 @@ function createOutcomeRouter({ outcomeService }) {
     body('recordedAt')
       .optional()
       .isISO8601()
-      .withMessage('recordedAt must be an ISO 8601 date'),
+      .withMessage('recordedAt must be an ISO 8601 date')
+      .bail()
+      // A day of slack covers a clinician entering "today" from a timezone
+      // ahead of the server; anything later is a typo that would otherwise
+      // sit outside every trend window.
+      .custom((value) => new Date(value).getTime() <= Date.now() + FUTURE_SLACK_MS)
+      .withMessage('recordedAt cannot be in the future'),
     body('notes')
       .optional()
       .trim()
