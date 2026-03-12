@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { OUTCOME_ORDER, OUTCOME_META, shortMonth, monthTitle } from '../../lib/outcomes';
 
 const VIEW_W = 760;
-const VIEW_H = 260;
+const VIEW_H = 340;
 const PAD = { top: 16, right: 12, bottom: 28, left: 36 };
 
 const PLOT_W = VIEW_W - PAD.left - PAD.right;
