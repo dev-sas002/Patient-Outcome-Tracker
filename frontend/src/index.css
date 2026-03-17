@@ -1,0 +1,130 @@
+/* ==========================================================================
+   Patient Outcome Tracker - design tokens
+   --------------------------------------------------------------------------
+   Outcome states use the reserved status palette (good / warning / critical)
+   rather than categorical series colours, because improved / stable / declined
+   is a state, not an identity. On a light surface the "stable" amber sits below
+   3:1 against the page, which is expected for a status colour - the mitigation
+   is that every outcome is always accompanied by its written label (legend,
+   pill text, table column, tooltip). Colour never carries the meaning alone.
+   ========================================================================== */
+
+:root {
+  color-scheme: light;
+
+  --surface-page: #f7f7f5;
+  --surface-card: #ffffff;
+  --surface-sunken: #f2f2ef;
+  --surface-hover: #f0f4fa;
+
+  --ink-primary: #101114;
+  --ink-secondary: #52514e;
+  --ink-muted: #76756f;
+
+  --line-hairline: #e4e4de;
+  --line-strong: #cfcfc7;
+  --line-grid: #ececE6;
+
+  --accent: #2a78d6;
+  --accent-strong: #1c5cab;
+  --accent-wash: #eaf2fd;
+  --accent-ink: #ffffff;
+
+  --state-improved: #0ca30c;
+  --state-stable: #fab219;
+  --state-declined: #d03b3b;
+  --state-improved-wash: #e6f6e6;
+  --state-stable-wash: #fdf3dd;
+  --state-declined-wash: #fbe9e9;
+  --state-improved-ink: #0a6b12;
+  --state-stable-ink: #7a5300;
+  --state-declined-ink: #97272a;
+
+  --danger-wash: #fbe9e9;
+  --danger-ink: #97272a;
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+
+  --shadow-card: 0 1px 2px rgba(16, 17, 20, 0.05);
+  --shadow-pop: 0 12px 32px rgba(16, 17, 20, 0.16);
+
+  --font-sans: system-ui, -apple-system, 'Segoe UI', Inter, sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+
+    --surface-page: #0e0f12;
+    --surface-card: #16181d;
+    --surface-sunken: #1c1f25;
+    --surface-hover: #1d2430;
+
+    --ink-primary: #f5f5f3;
+    --ink-secondary: #b9b9b2;
+    --ink-muted: #8b8b84;
+
+    --line-hairline: #262a31;
+    --line-strong: #343941;
+    --line-grid: #23262c;
+
+    --accent: #4f95e8;
+    --accent-strong: #79b0ef;
+    --accent-wash: #16263a;
+    --accent-ink: #0b1420;
+
+    --state-improved-wash: #10281a;
+    --state-stable-wash: #2c2312;
+    --state-declined-wash: #2e1718;
+    --state-improved-ink: #57cf5a;
+    --state-stable-ink: #f0bb4a;
+    --state-declined-ink: #f08a8a;
+
+    --danger-wash: #2e1718;
+    --danger-ink: #f08a8a;
+
+    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --shadow-pop: 0 16px 40px rgba(0, 0, 0, 0.55);
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--ink-primary);
+  background: var(--surface-page);
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  margin: 0;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+button {
+  font: inherit;
+  cursor: pointer;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
