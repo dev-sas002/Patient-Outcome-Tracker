@@ -1,0 +1,138 @@
+# The whole stack, from nothing to a populated dashboard, with:
+#
+#   docker compose up --build
+#
+# Then open http://localhost:8330 and sign in as dr.smith / password123.
+#
+# Host ports are in the 8330-8339 range so this stack does not collide with
+# anything already listening on the usual 3000/5432/8000/8080 defaults.
+
+name: patient-outcome-tracker
+
+x-mongo-env: &mongo-env
+  MONGODB_REGISTRY_URI: mongodb://mongo:27017/patient_tracker_registry
+  MONGODB_BASE_URI: mongodb://mongo:27017
+
+services:
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    ports:
+      - '8334:27017'
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: ['CMD', 'mongosh', '--quiet', '--eval', "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  # ---- one-shot seeding ----------------------------------------------------
+  # Two steps because the outcome records need the clinic registry to exist
+  # first. Both are `restart: no` jobs: they run once, populate, and exit, and
+  # the long-running services wait for them to complete.
+
+  seed-auth:
+    build:
+      context: ./auth-service
+    image: pot-auth-service
+    restart: 'no'
+    command: ['node', 'src/seed.js']
+    environment:
+      <<: *mongo-env
+      JWT_SECRET: ${JWT_SECRET:-dev-only-secret-change-me}
+    depends_on:
+      mongo:
+        condition: service_healthy
+
+  seed-outcome:
+    build:
+      context: ./outcome-service
+    image: pot-outcome-service
+    restart: 'no'
+    command: ['node', 'src/seed.js']
+    environment:
+      <<: *mongo-env
+      JWT_SECRET: ${JWT_SECRET:-dev-only-secret-change-me}
+    depends_on:
+      seed-auth:
+        condition: service_completed_successfully
+
+  # ---- services ------------------------------------------------------------
+
+  auth-service:
+    image: pot-auth-service
+    build:
+      context: ./auth-service
+    restart: unless-stopped
+    environment:
+      <<: *mongo-env
+      PORT: 4001
+      JWT_SECRET: ${JWT_SECRET:-dev-only-secret-change-me}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-24h}
+      CORS_ORIGIN: http://localhost:8330,http://localhost:8331
+      TENANT_MAX_CONNECTIONS: ${TENANT_MAX_CONNECTIONS:-50}
+    expose:
+      - '4001'
+    ports:
+      - '8332:4001'
+    depends_on:
+      seed-outcome:
+        condition: service_completed_successfully
+
+  outcome-service:
+    image: pot-outcome-service
+    build:
+      context: ./outcome-service
+    restart: unless-stopped
+    environment:
+      <<: *mongo-env
+      PORT: 4002
+      JWT_SECRET: ${JWT_SECRET:-dev-only-secret-change-me}
+      CORS_ORIGIN: http://localhost:8330,http://localhost:8331
+      TENANT_MAX_CONNECTIONS: ${TENANT_MAX_CONNECTIONS:-50}
+      INSIGHT_MIN_GROUP_SIZE: ${INSIGHT_MIN_GROUP_SIZE:-5}
+      # Optional. With no key the outcome summary is computed locally instead
+      # of by a model; nothing else changes and no request leaves the host.
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-opus-5}
+    expose:
+      - '4002'
+    ports:
+      - '8333:4002'
+    depends_on:
+      seed-outcome:
+        condition: service_completed_successfully
+
+  api-gateway:
+    build:
+      context: ./api-gateway
+    restart: unless-stopped
+    environment:
+      PORT: 4000
+      AUTH_SERVICE_URL: http://auth-service:4001
+      OUTCOME_SERVICE_URL: http://outcome-service:4002
+      CORS_ORIGIN: http://localhost:8330
+    ports:
+      - '8331:4000'
+    depends_on:
+      auth-service:
+        condition: service_healthy
+      outcome-service:
+        condition: service_healthy
+
+  web:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_BASE_URL: http://localhost:8331
+    restart: unless-stopped
+    ports:
+      - '8330:8080'
+    depends_on:
+      api-gateway:
+        condition: service_healthy
+
+volumes:
+  mongo-data:
